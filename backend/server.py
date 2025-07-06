@@ -439,7 +439,11 @@ async def check_room_availability_endpoint(room_id: str, check_in: date, check_o
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
     
-    is_available = await check_room_availability(room_id, check_in, check_out)
+    # Convert date objects to strings for MongoDB
+    check_in_str = check_in.isoformat() if isinstance(check_in, date) else check_in
+    check_out_str = check_out.isoformat() if isinstance(check_out, date) else check_out
+    
+    is_available = await check_room_availability(room_id, check_in_str, check_out_str)
     return {"available": is_available}
 
 # Get bookings for a specific date range
