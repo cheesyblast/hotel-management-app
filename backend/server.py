@@ -173,6 +173,12 @@ async def calculate_booking_amount(room_id: str, check_in: date, check_out: date
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
     
+    # If check_in and check_out are strings, convert them to date objects
+    if isinstance(check_in, str):
+        check_in = date.fromisoformat(check_in)
+    if isinstance(check_out, str):
+        check_out = date.fromisoformat(check_out)
+    
     nights = (check_out - check_in).days
     return room["price_per_night"] * nights
 
