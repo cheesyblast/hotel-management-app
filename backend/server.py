@@ -113,6 +113,15 @@ class BookingCreate(BaseModel):
         if 'check_in_date' in values and v <= values['check_in_date']:
             raise ValueError('Check-out date must be after check-in date')
         return v
+    
+    # Convert date objects to strings for MongoDB storage
+    def dict(self, *args, **kwargs):
+        data = super().dict(*args, **kwargs)
+        if 'check_in_date' in data and isinstance(data['check_in_date'], date):
+            data['check_in_date'] = data['check_in_date'].isoformat()
+        if 'check_out_date' in data and isinstance(data['check_out_date'], date):
+            data['check_out_date'] = data['check_out_date'].isoformat()
+        return data
 
 class BookingUpdate(BaseModel):
     status: Optional[BookingStatus] = None
