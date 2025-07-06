@@ -802,6 +802,39 @@ def test_expense_management():
         print_test_result("Expense Management", False, error=str(e))
         return False
 
+def test_financial_reporting():
+    try:
+        # Get financial report for today
+        today = datetime.now().date()
+        response = requests.get(f"{API_URL}/financial/report", params={"report_date": format_date(today)})
+        response.raise_for_status()
+        report = response.json()
+        print_test_result("Get Financial Report", True, report)
+        
+        # Verify report structure
+        required_fields = ["total_income", "total_expenses", "net_profit", "expenses_by_category"]
+        missing_fields = [field for field in required_fields if field not in report]
+        
+        if not missing_fields:
+            print_test_result("Financial Report Structure", True, "Report contains all required fields")
+        else:
+            print_test_result("Financial Report Structure", False, f"Missing fields: {missing_fields}")
+            return False
+        
+        # Download financial report PDF
+        response = requests.get(f"{API_URL}/financial/report/pdf", params={"report_date": format_date(today)})
+        
+        if response.status_code == 200 and response.headers.get('Content-Type') == 'application/pdf':
+            pdf_size = len(response.content)
+            print_test_result("Download Financial Report PDF", True, f"PDF size: {pdf_size} bytes")
+            return True
+        else:
+            print_test_result("Download Financial Report PDF", False, f"Status: {response.status_code}, Content-Type: {response.headers.get('Content-Type')}")
+            return False
+    except Exception as e:
+        print_test_result("Financial Reporting", False, error=str(e))
+        return False
+
 def test_data_flow():
     try:
         # 1. Initialize rooms
