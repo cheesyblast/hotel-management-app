@@ -835,6 +835,69 @@ def test_financial_reporting():
         print_test_result("Financial Reporting", False, error=str(e))
         return False
 
+def test_guest_search():
+    try:
+        # First, create a guest with unique identifiable information
+        unique_suffix = str(uuid.uuid4())[:8]
+        test_guest_data = {
+            "name": f"SearchTest User {unique_suffix}",
+            "email": f"search{unique_suffix}@example.com",
+            "phone": f"555-{unique_suffix}",
+            "address": "123 Search St, Test City",
+            "country": "United States",
+            "id_number": f"ID{unique_suffix}"
+        }
+        
+        response = requests.post(f"{API_URL}/guests", json=test_guest_data)
+        response.raise_for_status()
+        created_guest = response.json()
+        guest_id = created_guest["id"]
+        print_test_result("Create Guest for Search Test", True, created_guest)
+        
+        # Search by name
+        name_query = unique_suffix
+        response = requests.get(f"{API_URL}/guests/search", params={"query": name_query})
+        response.raise_for_status()
+        name_results = response.json()
+        
+        if name_results and any(g["id"] == guest_id for g in name_results):
+            print_test_result("Guest Search by Name", True, f"Found {len(name_results)} results")
+        else:
+            print_test_result("Guest Search by Name", False, f"Guest not found in search results")
+            return False
+        
+        # Search by email
+        email_query = unique_suffix
+        response = requests.get(f"{API_URL}/guests/search", params={"query": email_query})
+        response.raise_for_status()
+        email_results = response.json()
+        
+        if email_results and any(g["id"] == guest_id for g in email_results):
+            print_test_result("Guest Search by Email", True, f"Found {len(email_results)} results")
+        else:
+            print_test_result("Guest Search by Email", False, f"Guest not found in search results")
+            return False
+        
+        # Search by phone
+        phone_query = unique_suffix
+        response = requests.get(f"{API_URL}/guests/search", params={"query": phone_query})
+        response.raise_for_status()
+        phone_results = response.json()
+        
+        if phone_results and any(g["id"] == guest_id for g in phone_results):
+            print_test_result("Guest Search by Phone", True, f"Found {len(phone_results)} results")
+        else:
+            print_test_result("Guest Search by Phone", False, f"Guest not found in search results")
+            return False
+        
+        # Clean up
+        requests.delete(f"{API_URL}/guests/{guest_id}")
+        
+        return True
+    except Exception as e:
+        print_test_result("Guest Search", False, error=str(e))
+        return False
+
 def test_data_flow():
     try:
         # 1. Initialize rooms
