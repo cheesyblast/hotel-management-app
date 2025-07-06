@@ -614,6 +614,30 @@ def test_payment_management(booking_id):
         print_test_result("Payment Management", False, error=str(e))
         return False
 
+def test_booking_balance(booking_id):
+    try:
+        response = requests.get(f"{API_URL}/bookings/{booking_id}/balance")
+        response.raise_for_status()
+        balance_info = response.json()
+        print_test_result("Get Booking Balance", True, balance_info)
+        
+        # Verify balance calculation
+        if "total_amount" in balance_info and "total_paid" in balance_info and "balance_due" in balance_info:
+            calculated_balance = balance_info["total_amount"] - balance_info["total_paid"]
+            if abs(calculated_balance - balance_info["balance_due"]) < 0.01:  # Allow for floating point precision
+                print_test_result("Balance Calculation", True, f"Calculated balance matches API response")
+                return True
+            else:
+                print_test_result("Balance Calculation", False, 
+                                 f"Calculated balance ({calculated_balance}) doesn't match API response ({balance_info['balance_due']})")
+                return False
+        else:
+            print_test_result("Balance Calculation", False, "Missing balance information in response")
+            return False
+    except Exception as e:
+        print_test_result("Booking Balance", False, error=str(e))
+        return False
+
 def test_data_flow():
     try:
         # 1. Initialize rooms
