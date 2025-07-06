@@ -552,9 +552,443 @@ async def get_bookings_by_date_range(start_date: date, end_date: date):
     
     return [Booking(**booking) for booking in bookings]
 
-# Initialize default rooms
-@api_router.post("/initialize-rooms")
-async def initialize_default_rooms():
+# Payment endpoints
+@api_router.post("/payments", response_model=Payment)
+async def create_payment(payment: PaymentCreate):
+    # Validate booking exists
+    booking = await db.bookings.find_one({"id": payment.booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    payment_dict = payment.dict()
+    payment_obj = Payment(**payment_dict)
+    await db.payments.insert_one(payment_obj.dict())
+    return payment_obj
+
+@api_router.get("/payments", response_model=List[Payment])
+async def get_payments():
+    payments = await db.payments.find().to_list(100)
+    return [Payment(**payment) for payment in payments]
+
+@api_router.get("/payments/booking/{booking_id}", response_model=List[Payment])
+async def get_payments_by_booking(booking_id: str):
+    payments = await db.payments.find({"booking_id": booking_id}).to_list(100)
+    return [Payment(**payment) for payment in payments]
+
+@api_router.get("/bookings/{booking_id}/balance")
+async def get_booking_balance(booking_id: str):
+    booking = await db.bookings.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Calculate total payments
+    payments = await db.payments.find({"booking_id": booking_id}).to_list(100)
+    total_paid = sum(payment["amount"] for payment in payments)
+    
+    balance = booking["total_amount"] - total_paid
+    
+    return {
+        "booking_id": booking_id,
+        "total_amount": booking["total_amount"],
+        "total_paid": total_paid,
+        "balance_due": balance,
+        "payments": [Payment(**payment) for payment in payments]
+    }
+
+# Expense endpoints
+@api_router.post("/expenses", response_model=Expense)
+async def create_expense(expense: ExpenseCreate):
+    expense_dict = expense.dict()
+    if expense_dict.get("date") is None:
+        expense_dict["date"] = date.today()
+    
+    expense_obj = Expense(**expense_dict)
+    
+    # Convert date to string for MongoDB
+    expense_data = expense_obj.dict()
+    if isinstance(expense_data["date"], date):
+        expense_data["date"] = expense_data["date"].isoformat()
+    
+    await db.expenses.insert_one(expense_data)
+    return expense_obj
+
+@api_router.get("/expenses", response_model=List[Expense])
+async def get_expenses():
+    expenses = await db.expenses.find().to_list(100)
+    # Convert date strings back to date objects
+    for expense in expenses:
+        if isinstance(expense["date"], str):
+            expense["date"] = date.fromisoformat(expense["date"])
+    return [Expense(**expense) for expense in expenses]
+
+@api_router.get("/expenses/{expense_id}", response_model=Expense)
+async def get_expense(expense_id: str):
+    expense = await db.expenses.find_one({"id": expense_id})
+    if not expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    
+    if isinstance(expense["date"], str):
+        expense["date"] = date.fromisoformat(expense["date"])
+    
+    return Expense(**expense)
+
+@api_router.put("/expenses/{expense_id}", response_model=Expense)
+async def update_expense(expense_id: str, expense_update: ExpenseCreate):
+    expense = await db.expenses.find_one({"id": expense_id})
+    if not expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    
+    update_data = expense_update.dict()
+    if update_data.get("date") and isinstance(update_data["date"], date):
+        update_data["date"] = update_data["date"].isoformat()
+    
+    await db.expenses.update_one({"id": expense_id}, {"$set": update_data})
+    
+    updated_expense = await db.expenses.find_one({"id": expense_id})
+    if isinstance(updated_expense["date"], str):
+        updated_expense["date"] = date.fromisoformat(updated_expense["date"])
+    
+    return Expense(**updated_expense)
+
+@api_router.delete("/expenses/{expense_id}")
+async def delete_expense(expense_id: str):
+    expense = await db.expenses.find_one({"id": expense_id})
+    if not expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    
+    await db.expenses.delete_one({"id": expense_id})
+    return {"message": "Expense deleted successfully"}
+
+# Invoice generation
+@api_router.post("/invoices/generate/{booking_id}")
+async def generate_invoice(booking_id: str):
+    # Get booking details
+    booking = await db.bookings.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Get guest details
+    guest = await db.guests.find_one({"id": booking["guest_id"]})
+    if not guest:
+        raise HTTPException(status_code=404, detail="Guest not found")
+    
+    # Get room details
+    room = await db.rooms.find_one({"id": booking["room_id"]})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    
+    # Get payments
+    payments = await db.payments.find({"booking_id": booking_id}).to_list(100)
+    total_paid = sum(payment["amount"] for payment in payments)
+    
+    # Create invoice
+    invoice_data = {
+        "booking_id": booking_id,
+        "guest_name": guest["name"],
+        "room_number": room["room_number"],
+        "check_in_date": booking["check_in_date"],
+        "check_out_date": booking["check_out_date"],
+        "total_amount": booking["total_amount"],
+        "advance_paid": sum(p["amount"] for p in payments if p.get("is_advance", False)),
+        "balance_due": booking["total_amount"] - total_paid,
+        "payments": [Payment(**payment) for payment in payments]
+    }
+    
+    if isinstance(invoice_data["check_in_date"], str):
+        invoice_data["check_in_date"] = date.fromisoformat(invoice_data["check_in_date"])
+    if isinstance(invoice_data["check_out_date"], str):
+        invoice_data["check_out_date"] = date.fromisoformat(invoice_data["check_out_date"])
+    
+    invoice_obj = Invoice(**invoice_data)
+    
+    # Save invoice to database
+    invoice_dict = invoice_obj.dict()
+    if isinstance(invoice_dict["check_in_date"], date):
+        invoice_dict["check_in_date"] = invoice_dict["check_in_date"].isoformat()
+    if isinstance(invoice_dict["check_out_date"], date):
+        invoice_dict["check_out_date"] = invoice_dict["check_out_date"].isoformat()
+    
+    await db.invoices.insert_one(invoice_dict)
+    return invoice_obj
+
+@api_router.get("/invoices/{invoice_id}/pdf")
+async def download_invoice_pdf(invoice_id: str):
+    invoice = await db.invoices.find_one({"id": invoice_id})
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    # Convert date strings back to date objects
+    if isinstance(invoice["check_in_date"], str):
+        invoice["check_in_date"] = date.fromisoformat(invoice["check_in_date"])
+    if isinstance(invoice["check_out_date"], str):
+        invoice["check_out_date"] = date.fromisoformat(invoice["check_out_date"])
+    
+    # Generate PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+    
+    # Title
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        spaceAfter=30,
+        alignment=TA_CENTER
+    )
+    story.append(Paragraph("HOTEL INVOICE", title_style))
+    
+    # Invoice details
+    story.append(Paragraph(f"<b>Invoice ID:</b> {invoice['id']}", styles['Normal']))
+    story.append(Paragraph(f"<b>Guest Name:</b> {invoice['guest_name']}", styles['Normal']))
+    story.append(Paragraph(f"<b>Room Number:</b> {invoice['room_number']}", styles['Normal']))
+    story.append(Paragraph(f"<b>Check-in Date:</b> {invoice['check_in_date']}", styles['Normal']))
+    story.append(Paragraph(f"<b>Check-out Date:</b> {invoice['check_out_date']}", styles['Normal']))
+    story.append(Spacer(1, 20))
+    
+    # Payment details table
+    data = [
+        ['Description', 'Amount'],
+        ['Total Amount', f"${invoice['total_amount']:.2f}"],
+        ['Advance Paid', f"${invoice['advance_paid']:.2f}"],
+        ['Balance Due', f"${invoice['balance_due']:.2f}"]
+    ]
+    
+    table = Table(data, colWidths=[3*inch, 2*inch])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 14),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    story.append(table)
+    story.append(Spacer(1, 20))
+    
+    # Payment history
+    if invoice.get('payments'):
+        story.append(Paragraph("<b>Payment History:</b>", styles['Normal']))
+        payment_data = [['Date', 'Type', 'Amount', 'Description']]
+        for payment in invoice['payments']:
+            payment_data.append([
+                payment.get('payment_date', 'N/A'),
+                payment.get('payment_type', 'N/A'),
+                f"${payment.get('amount', 0):.2f}",
+                payment.get('description', 'N/A')
+            ])
+        
+        payment_table = Table(payment_data, colWidths=[1.5*inch, 1*inch, 1*inch, 2.5*inch])
+        payment_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        
+        story.append(payment_table)
+    
+    doc.build(story)
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        io.BytesIO(buffer.read()),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=invoice_{invoice_id}.pdf"}
+    )
+
+# Financial reporting
+@api_router.get("/financial/report", response_model=FinancialReport)
+async def get_financial_report(report_date: date):
+    # Get bookings for the date
+    report_date_str = report_date.isoformat()
+    
+    # Get completed bookings for the date
+    completed_bookings = await db.bookings.find({
+        "status": BookingStatus.CHECKED_OUT,
+        "check_out_date": report_date_str
+    }).to_list(100)
+    
+    # Get payments for the date
+    payments = await db.payments.find({
+        "payment_date": {
+            "$gte": datetime.combine(report_date, datetime.min.time()),
+            "$lt": datetime.combine(report_date, datetime.max.time())
+        }
+    }).to_list(100)
+    
+    # Get expenses for the date
+    expenses = await db.expenses.find({
+        "date": report_date_str
+    }).to_list(100)
+    
+    # Calculate totals
+    total_income = sum(payment["amount"] for payment in payments)
+    total_expenses = sum(expense["amount"] for expense in expenses)
+    net_profit = total_income - total_expenses
+    
+    room_revenue = sum(booking["total_amount"] for booking in completed_bookings)
+    advance_payments = sum(payment["amount"] for payment in payments if payment.get("is_advance", False))
+    final_payments = sum(payment["amount"] for payment in payments if not payment.get("is_advance", False))
+    
+    # Group expenses by category
+    expenses_by_category = {}
+    for expense in expenses:
+        category = expense["category"]
+        if category not in expenses_by_category:
+            expenses_by_category[category] = 0
+        expenses_by_category[category] += expense["amount"]
+    
+    return FinancialReport(
+        date=report_date,
+        total_income=total_income,
+        total_expenses=total_expenses,
+        net_profit=net_profit,
+        total_bookings=len(completed_bookings),
+        room_revenue=room_revenue,
+        advance_payments=advance_payments,
+        final_payments=final_payments,
+        expenses_by_category=expenses_by_category
+    )
+
+@api_router.get("/financial/report/pdf")
+async def download_financial_report_pdf(report_date: date):
+    # Get financial report data
+    report = await get_financial_report(report_date)
+    
+    # Generate PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+    
+    # Title
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        spaceAfter=30,
+        alignment=TA_CENTER
+    )
+    story.append(Paragraph(f"DAILY FINANCIAL REPORT - {report_date}", title_style))
+    
+    # Summary table
+    summary_data = [
+        ['Metric', 'Amount'],
+        ['Total Income', f"${report.total_income:.2f}"],
+        ['Total Expenses', f"${report.total_expenses:.2f}"],
+        ['Net Profit', f"${report.net_profit:.2f}"],
+        ['Total Bookings', str(report.total_bookings)],
+        ['Room Revenue', f"${report.room_revenue:.2f}"],
+        ['Advance Payments', f"${report.advance_payments:.2f}"],
+        ['Final Payments', f"${report.final_payments:.2f}"]
+    ]
+    
+    table = Table(summary_data, colWidths=[3*inch, 2*inch])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 14),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    story.append(table)
+    story.append(Spacer(1, 20))
+    
+    # Expenses by category
+    if report.expenses_by_category:
+        story.append(Paragraph("<b>Expenses by Category:</b>", styles['Normal']))
+        expense_data = [['Category', 'Amount']]
+        for category, amount in report.expenses_by_category.items():
+            expense_data.append([category.title(), f"${amount:.2f}"])
+        
+        expense_table = Table(expense_data, colWidths=[3*inch, 2*inch])
+        expense_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        
+        story.append(expense_table)
+    
+    doc.build(story)
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        io.BytesIO(buffer.read()),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=financial_report_{report_date}.pdf"}
+    )
+
+# Enhanced booking checkout
+@api_router.post("/bookings/{booking_id}/checkout")
+async def checkout_booking(booking_id: str, final_payment: Optional[PaymentCreate] = None):
+    booking = await db.bookings.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    if booking["status"] != BookingStatus.CHECKED_IN:
+        raise HTTPException(status_code=400, detail="Booking must be checked in to checkout")
+    
+    # Calculate balance
+    payments = await db.payments.find({"booking_id": booking_id}).to_list(100)
+    total_paid = sum(payment["amount"] for payment in payments)
+    balance_due = booking["total_amount"] - total_paid
+    
+    # If there's a final payment, process it
+    if final_payment and balance_due > 0:
+        if final_payment.amount > balance_due:
+            raise HTTPException(status_code=400, detail="Payment amount exceeds balance due")
+        
+        final_payment_dict = final_payment.dict()
+        final_payment_dict["booking_id"] = booking_id
+        final_payment_dict["is_advance"] = False
+        final_payment_obj = Payment(**final_payment_dict)
+        await db.payments.insert_one(final_payment_obj.dict())
+        
+        total_paid += final_payment.amount
+        balance_due -= final_payment.amount
+    
+    # Update booking status
+    await db.bookings.update_one(
+        {"id": booking_id}, 
+        {"$set": {"status": BookingStatus.CHECKED_OUT}}
+    )
+    
+    # Update room status to cleaning
+    await db.rooms.update_one(
+        {"id": booking["room_id"]}, 
+        {"$set": {"status": RoomStatus.CLEANING}}
+    )
+    
+    # Generate invoice
+    invoice_response = await generate_invoice(booking_id)
+    
+    return {
+        "message": "Checkout completed successfully",
+        "booking_id": booking_id,
+        "total_amount": booking["total_amount"],
+        "total_paid": total_paid,
+        "balance_due": balance_due,
+        "invoice_id": invoice_response.id
+    }
     # Check if rooms already exist
     existing_rooms = await db.rooms.count_documents({})
     if existing_rooms > 0:
