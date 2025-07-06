@@ -628,8 +628,8 @@ async def get_expense(expense_id: str):
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
     
-    if isinstance(expense["date"], str):
-        expense["date"] = date.fromisoformat(expense["date"])
+    if isinstance(expense["expense_date"], str):
+        expense["expense_date"] = date.fromisoformat(expense["expense_date"])
     
     return Expense(**expense)
 
@@ -640,14 +640,14 @@ async def update_expense(expense_id: str, expense_update: ExpenseCreate):
         raise HTTPException(status_code=404, detail="Expense not found")
     
     update_data = expense_update.dict()
-    if update_data.get("date") and isinstance(update_data["date"], date):
-        update_data["date"] = update_data["date"].isoformat()
+    if update_data.get("expense_date") and isinstance(update_data["expense_date"], date):
+        update_data["expense_date"] = update_data["expense_date"].isoformat()
     
     await db.expenses.update_one({"id": expense_id}, {"$set": update_data})
     
     updated_expense = await db.expenses.find_one({"id": expense_id})
-    if isinstance(updated_expense["date"], str):
-        updated_expense["date"] = date.fromisoformat(updated_expense["date"])
+    if isinstance(updated_expense["expense_date"], str):
+        updated_expense["expense_date"] = date.fromisoformat(updated_expense["expense_date"])
     
     return Expense(**updated_expense)
 
