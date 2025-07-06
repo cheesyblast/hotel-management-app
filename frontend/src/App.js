@@ -139,19 +139,88 @@ const RoomsGrid = ({ rooms, onRoomClick, onStatusChange }) => {
   );
 };
 
-// Booking Form Component
+// Enhanced Booking Form Component
 const BookingForm = ({ guests, rooms, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
-    guest_id: '',
+    guest_name: '',
+    guest_email: '',
+    guest_phone: '',
+    guest_country: '',
+    guest_address: '',
+    guest_id_number: '',
     room_id: '',
     check_in_date: '',
     check_out_date: '',
     special_requests: ''
   });
+  
+  const [guestSuggestions, setGuestSuggestions] = useState([]);
+  const [selectedGuest, setSelectedGuest] = useState(null);
+  const [showGuestSuggestions, setShowGuestSuggestions] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleGuestSearch = async (searchTerm) => {
+    if (searchTerm.length > 2) {
+      try {
+        const response = await axios.get(`${API}/guests/search?query=${searchTerm}`);
+        setGuestSuggestions(response.data);
+        setShowGuestSuggestions(true);
+      } catch (error) {
+        console.error('Error searching guests:', error);
+      }
+    } else {
+      setGuestSuggestions([]);
+      setShowGuestSuggestions(false);
+    }
+  };
+
+  const selectGuest = (guest) => {
+    setSelectedGuest(guest);
+    setFormData({
+      ...formData,
+      guest_name: guest.name,
+      guest_email: guest.email,
+      guest_phone: guest.phone,
+      guest_country: guest.country,
+      guest_address: guest.address || '',
+      guest_id_number: guest.id_number || ''
+    });
+    setShowGuestSuggestions(false);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    
+    try {
+      let guestId = selectedGuest?.id;
+      
+      // If no guest selected, create a new one
+      if (!guestId) {
+        const guestData = {
+          name: formData.guest_name,
+          email: formData.guest_email,
+          phone: formData.guest_phone,
+          country: formData.guest_country,
+          address: formData.guest_address,
+          id_number: formData.guest_id_number
+        };
+        
+        const guestResponse = await axios.post(`${API}/guests`, guestData);
+        guestId = guestResponse.data.id;
+      }
+      
+      const bookingData = {
+        guest_id: guestId,
+        room_id: formData.room_id,
+        check_in_date: formData.check_in_date,
+        check_out_date: formData.check_out_date,
+        special_requests: formData.special_requests
+      };
+      
+      onSubmit(bookingData);
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      alert('Error creating booking: ' + (error.response?.data?.detail || error.message));
+    }
   };
 
   const availableRooms = rooms.filter(room => room.status === 'available');
@@ -160,70 +229,150 @@ const BookingForm = ({ guests, rooms, onSubmit, onCancel }) => {
     <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
       <h2 className="text-2xl font-bold text-gray-800 mb-4">Create New Booking</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Guest</label>
-          <select
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={formData.guest_id}
-            onChange={(e) => setFormData({...formData, guest_id: e.target.value})}
-            required
-          >
-            <option value="">Select Guest</option>
-            {guests.map(guest => (
-              <option key={guest.id} value={guest.id}>{guest.name} - {guest.email}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Room</label>
-          <select
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={formData.room_id}
-            onChange={(e) => setFormData({...formData, room_id: e.target.value})}
-            required
-          >
-            <option value="">Select Room</option>
-            {availableRooms.map(room => (
-              <option key={room.id} value={room.id}>
-                {room.room_number} - {room.room_type} - ${room.price_per_night}/night
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Check-in Date</label>
+        {/* Guest Information */}
+        <div className="border-t pt-4">
+          <h3 className="text-lg font-semibold text-gray-700 mb-3">Guest Information</h3>
+          
+          <div className="relative">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Guest Name</label>
             <input
-              type="date"
+              type="text"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={formData.check_in_date}
-              onChange={(e) => setFormData({...formData, check_in_date: e.target.value})}
+              value={formData.guest_name}
+              onChange={(e) => {
+                setFormData({...formData, guest_name: e.target.value});
+                handleGuestSearch(e.target.value);
+              }}
               required
+              placeholder="Enter guest name or search existing guests"
+            />
+            
+            {showGuestSuggestions && guestSuggestions.length > 0 && (
+              <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-lg mt-1 max-h-40 overflow-y-auto">
+                {guestSuggestions.map((guest) => (
+                  <div
+                    key={guest.id}
+                    className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
+                    onClick={() => selectGuest(guest)}
+                  >
+                    <div className="font-medium">{guest.name}</div>
+                    <div className="text-sm text-gray-600">{guest.email} • {guest.phone}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={formData.guest_email}
+                onChange={(e) => setFormData({...formData, guest_email: e.target.value})}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <input
+                type="tel"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={formData.guest_phone}
+                onChange={(e) => setFormData({...formData, guest_phone: e.target.value})}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+              <input
+                type="text"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={formData.guest_country}
+                onChange={(e) => setFormData({...formData, guest_country: e.target.value})}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ID Number</label>
+              <input
+                type="text"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={formData.guest_id_number}
+                onChange={(e) => setFormData({...formData, guest_id_number: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+            <input
+              type="text"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={formData.guest_address}
+              onChange={(e) => setFormData({...formData, guest_address: e.target.value})}
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Check-out Date</label>
-            <input
-              type="date"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={formData.check_out_date}
-              onChange={(e) => setFormData({...formData, check_out_date: e.target.value})}
-              required
-            />
-          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Special Requests</label>
-          <textarea
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            rows="3"
-            value={formData.special_requests}
-            onChange={(e) => setFormData({...formData, special_requests: e.target.value})}
-            placeholder="Any special requests or notes..."
-          />
+        {/* Booking Information */}
+        <div className="border-t pt-4">
+          <h3 className="text-lg font-semibold text-gray-700 mb-3">Booking Information</h3>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Room</label>
+            <select
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={formData.room_id}
+              onChange={(e) => setFormData({...formData, room_id: e.target.value})}
+              required
+            >
+              <option value="">Select Room</option>
+              {availableRooms.map(room => (
+                <option key={room.id} value={room.id}>
+                  {room.room_number} - {room.room_type} - ${room.price_per_night}/night
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Check-in Date</label>
+              <input
+                type="date"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={formData.check_in_date}
+                onChange={(e) => setFormData({...formData, check_in_date: e.target.value})}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Check-out Date</label>
+              <input
+                type="date"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={formData.check_out_date}
+                onChange={(e) => setFormData({...formData, check_out_date: e.target.value})}
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Special Requests</label>
+            <textarea
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows="3"
+              value={formData.special_requests}
+              onChange={(e) => setFormData({...formData, special_requests: e.target.value})}
+              placeholder="Any special requests or notes..."
+            />
+          </div>
         </div>
 
         <div className="flex space-x-4">
@@ -246,8 +395,18 @@ const BookingForm = ({ guests, rooms, onSubmit, onCancel }) => {
   );
 };
 
-// Bookings List Component
-const BookingsList = ({ bookings, guests, rooms, onStatusChange }) => {
+// Enhanced Bookings List Component
+const BookingsList = ({ bookings, guests, rooms, onStatusChange, onPayment, onCheckout }) => {
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [paymentData, setPaymentData] = useState({
+    amount: '',
+    payment_type: 'cash',
+    description: '',
+    is_advance: false
+  });
+
   const getGuestName = (guestId) => {
     const guest = guests.find(g => g.id === guestId);
     return guest ? guest.name : 'Unknown Guest';
@@ -256,6 +415,65 @@ const BookingsList = ({ bookings, guests, rooms, onStatusChange }) => {
   const getRoomNumber = (roomId) => {
     const room = rooms.find(r => r.id === roomId);
     return room ? room.room_number : 'Unknown Room';
+  };
+
+  const handlePayment = async (booking) => {
+    setSelectedBooking(booking);
+    setShowPaymentModal(true);
+  };
+
+  const handleCheckout = async (booking) => {
+    setSelectedBooking(booking);
+    setShowCheckoutModal(true);
+  };
+
+  const submitPayment = async () => {
+    try {
+      const payment = {
+        booking_id: selectedBooking.id,
+        amount: parseFloat(paymentData.amount),
+        payment_type: paymentData.payment_type,
+        description: paymentData.description,
+        is_advance: paymentData.is_advance
+      };
+      
+      await onPayment(payment);
+      setShowPaymentModal(false);
+      setPaymentData({
+        amount: '',
+        payment_type: 'cash',
+        description: '',
+        is_advance: false
+      });
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      alert('Error processing payment: ' + (error.response?.data?.detail || error.message));
+    }
+  };
+
+  const submitCheckout = async () => {
+    try {
+      const checkoutData = {
+        booking_id: selectedBooking.id,
+        final_payment: paymentData.amount ? {
+          amount: parseFloat(paymentData.amount),
+          payment_type: paymentData.payment_type,
+          description: paymentData.description
+        } : null
+      };
+      
+      await onCheckout(checkoutData);
+      setShowCheckoutModal(false);
+      setPaymentData({
+        amount: '',
+        payment_type: 'cash',
+        description: '',
+        is_advance: false
+      });
+    } catch (error) {
+      console.error('Error processing checkout:', error);
+      alert('Error processing checkout: ' + (error.response?.data?.detail || error.message));
+    }
   };
 
   return (
@@ -295,9 +513,355 @@ const BookingsList = ({ bookings, guests, rooms, onStatusChange }) => {
                 <option value="checked_out">Checked Out</option>
                 <option value="cancelled">Cancelled</option>
               </select>
+              
+              {booking.status !== 'cancelled' && booking.status !== 'checked_out' && (
+                <button
+                  onClick={() => handlePayment(booking)}
+                  className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                >
+                  Payment
+                </button>
+              )}
+              
+              {booking.status === 'checked_in' && (
+                <button
+                  onClick={() => handleCheckout(booking)}
+                  className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                >
+                  Checkout
+                </button>
+              )}
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96">
+            <h3 className="text-lg font-semibold mb-4">Add Payment</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={paymentData.amount}
+                  onChange={(e) => setPaymentData({...paymentData, amount: e.target.value})}
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type</label>
+                <select
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={paymentData.payment_type}
+                  onChange={(e) => setPaymentData({...paymentData, payment_type: e.target.value})}
+                >
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <input
+                  type="text"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={paymentData.description}
+                  onChange={(e) => setPaymentData({...paymentData, description: e.target.value})}
+                  placeholder="Payment description"
+                />
+              </div>
+              
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="isAdvance"
+                  className="mr-2"
+                  checked={paymentData.is_advance}
+                  onChange={(e) => setPaymentData({...paymentData, is_advance: e.target.checked})}
+                />
+                <label htmlFor="isAdvance" className="text-sm text-gray-700">This is an advance payment</label>
+              </div>
+            </div>
+            
+            <div className="flex space-x-2 mt-6">
+              <button
+                onClick={submitPayment}
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Add Payment
+              </button>
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Checkout Modal */}
+      {showCheckoutModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96">
+            <h3 className="text-lg font-semibold mb-4">Checkout Guest</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Complete the checkout process. Add final payment if there's a remaining balance.
+            </p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Final Payment (if any)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={paymentData.amount}
+                  onChange={(e) => setPaymentData({...paymentData, amount: e.target.value})}
+                  placeholder="0.00"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type</label>
+                <select
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={paymentData.payment_type}
+                  onChange={(e) => setPaymentData({...paymentData, payment_type: e.target.value})}
+                >
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <input
+                  type="text"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={paymentData.description}
+                  onChange={(e) => setPaymentData({...paymentData, description: e.target.value})}
+                  placeholder="Final payment description"
+                />
+              </div>
+            </div>
+            
+            <div className="flex space-x-2 mt-6">
+              <button
+                onClick={submitCheckout}
+                className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Complete Checkout
+              </button>
+              <button
+                onClick={() => setShowCheckoutModal(false)}
+                className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Financial Management Component
+const FinancialManagement = () => {
+  const [expenses, setExpenses] = useState([]);
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [expenseData, setExpenseData] = useState({
+    category: 'utilities',
+    amount: '',
+    description: '',
+    date: new Date().toISOString().split('T')[0]
+  });
+  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const loadExpenses = async () => {
+    try {
+      const response = await axios.get(`${API}/expenses`);
+      setExpenses(response.data);
+    } catch (error) {
+      console.error('Error loading expenses:', error);
+    }
+  };
+
+  const addExpense = async () => {
+    try {
+      await axios.post(`${API}/expenses`, {
+        category: expenseData.category,
+        amount: parseFloat(expenseData.amount),
+        description: expenseData.description,
+        date: expenseData.date
+      });
+      
+      setShowExpenseForm(false);
+      setExpenseData({
+        category: 'utilities',
+        amount: '',
+        description: '',
+        date: new Date().toISOString().split('T')[0]
+      });
+      loadExpenses();
+    } catch (error) {
+      console.error('Error adding expense:', error);
+      alert('Error adding expense: ' + (error.response?.data?.detail || error.message));
+    }
+  };
+
+  const downloadReport = async () => {
+    try {
+      const response = await axios.get(`${API}/financial/report/pdf?report_date=${reportDate}`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `financial_report_${reportDate}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error('Error downloading report:', error);
+      alert('Error downloading report: ' + (error.response?.data?.detail || error.message));
+    }
+  };
+
+  useEffect(() => {
+    loadExpenses();
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      {/* Expense Management */}
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-gray-800">Expense Management</h2>
+          <button
+            onClick={() => setShowExpenseForm(!showExpenseForm)}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            {showExpenseForm ? 'Cancel' : 'Add Expense'}
+          </button>
+        </div>
+
+        {showExpenseForm && (
+          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+            <h3 className="text-lg font-semibold mb-3">Add New Expense</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <select
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={expenseData.category}
+                  onChange={(e) => setExpenseData({...expenseData, category: e.target.value})}
+                >
+                  <option value="utilities">Utilities</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="supplies">Supplies</option>
+                  <option value="staff">Staff</option>
+                  <option value="marketing">Marketing</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={expenseData.amount}
+                  onChange={(e) => setExpenseData({...expenseData, amount: e.target.value})}
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <input
+                  type="date"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={expenseData.date}
+                  onChange={(e) => setExpenseData({...expenseData, date: e.target.value})}
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <input
+                  type="text"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={expenseData.description}
+                  onChange={(e) => setExpenseData({...expenseData, description: e.target.value})}
+                  required
+                />
+              </div>
+            </div>
+            
+            <div className="mt-4">
+              <button
+                onClick={addExpense}
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Add Expense
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Expense List */}
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-gray-700">Recent Expenses</h3>
+          {expenses.slice(0, 10).map((expense) => (
+            <div key={expense.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+              <div>
+                <div className="font-medium">{expense.description}</div>
+                <div className="text-sm text-gray-600">{expense.category} • {formatDate(expense.date)}</div>
+              </div>
+              <div className="text-lg font-semibold text-red-600">${expense.amount}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Financial Reports */}
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        <h2 className="text-2xl font-bold text-gray-800 mb-4">Financial Reports</h2>
+        
+        <div className="flex items-center space-x-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Report Date</label>
+            <input
+              type="date"
+              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={reportDate}
+              onChange={(e) => setReportDate(e.target.value)}
+            />
+          </div>
+          
+          <button
+            onClick={downloadReport}
+            className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-2 rounded-lg transition-colors mt-6"
+          >
+            Download Daily Report (PDF)
+          </button>
+        </div>
+        
+        <p className="text-sm text-gray-600">
+          Generate comprehensive daily financial reports including income from bookings, expenses by category, and net profit calculations.
+        </p>
       </div>
     </div>
   );
@@ -310,6 +874,7 @@ const GuestForm = ({ onSubmit, onCancel }) => {
     email: '',
     phone: '',
     address: '',
+    country: '',
     id_number: ''
   });
 
@@ -351,6 +916,17 @@ const GuestForm = ({ onSubmit, onCancel }) => {
             className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={formData.phone}
             onChange={(e) => setFormData({...formData, phone: e.target.value})}
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+          <input
+            type="text"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={formData.country}
+            onChange={(e) => setFormData({...formData, country: e.target.value})}
             required
           />
         </div>
@@ -487,6 +1063,45 @@ function App() {
     }
   };
 
+  // Handle payment
+  const handlePayment = async (paymentData) => {
+    try {
+      await axios.post(`${API}/payments`, paymentData);
+      loadData();
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      throw error;
+    }
+  };
+
+  // Handle checkout
+  const handleCheckout = async (checkoutData) => {
+    try {
+      const response = await axios.post(`${API}/bookings/${checkoutData.booking_id}/checkout`, checkoutData.final_payment ? { final_payment: checkoutData.final_payment } : {});
+      
+      // Download invoice
+      if (response.data.invoice_id) {
+        const invoiceResponse = await axios.get(`${API}/invoices/${response.data.invoice_id}/pdf`, {
+          responseType: 'blob'
+        });
+        
+        const url = window.URL.createObjectURL(new Blob([invoiceResponse.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `invoice_${response.data.invoice_id}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+      
+      loadData();
+      alert('Checkout completed successfully! Invoice has been downloaded.');
+    } catch (error) {
+      console.error('Error processing checkout:', error);
+      throw error;
+    }
+  };
+
   // Load data on component mount
   useEffect(() => {
     loadData();
@@ -550,6 +1165,16 @@ function App() {
               >
                 Guests
               </button>
+              <button
+                onClick={() => setActiveTab('financial')}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === 'financial'
+                    ? 'bg-blue-500 text-white'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Financial
+              </button>
             </nav>
           </div>
         </div>
@@ -600,6 +1225,8 @@ function App() {
               guests={guests}
               rooms={rooms}
               onStatusChange={updateBookingStatus}
+              onPayment={handlePayment}
+              onCheckout={handleCheckout}
             />
           </>
         )}
@@ -630,6 +1257,7 @@ function App() {
                     <h3 className="text-lg font-semibold text-gray-800">{guest.name}</h3>
                     <p className="text-sm text-gray-600">{guest.email}</p>
                     <p className="text-sm text-gray-600">{guest.phone}</p>
+                    <p className="text-sm text-gray-600">{guest.country}</p>
                     {guest.address && (
                       <p className="text-sm text-gray-600">{guest.address}</p>
                     )}
@@ -638,6 +1266,10 @@ function App() {
               </div>
             </div>
           </>
+        )}
+
+        {activeTab === 'financial' && (
+          <FinancialManagement />
         )}
       </div>
     </div>
