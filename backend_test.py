@@ -739,6 +739,69 @@ def test_invoice_generation(booking_id):
         print_test_result("Invoice Generation", False, error=str(e))
         return False, None
 
+def test_expense_management():
+    try:
+        # Create expenses with different categories
+        expense_categories = ["utilities", "maintenance", "supplies", "staff", "marketing", "other"]
+        expense_ids = []
+        
+        for i, category in enumerate(expense_categories):
+            expense_data = {
+                "category": category,
+                "amount": 100.0 + (i * 50),
+                "description": f"Test {category} expense",
+                "date": format_date(datetime.now().date())
+            }
+            
+            response = requests.post(f"{API_URL}/expenses", json=expense_data)
+            response.raise_for_status()
+            expense = response.json()
+            expense_ids.append(expense["id"])
+            print_test_result(f"Create Expense ({category})", True, expense)
+        
+        # Get all expenses
+        response = requests.get(f"{API_URL}/expenses")
+        response.raise_for_status()
+        expenses = response.json()
+        print_test_result("Get All Expenses", True, f"Found {len(expenses)} expenses")
+        
+        # Get specific expense
+        if expense_ids:
+            expense_id = expense_ids[0]
+            response = requests.get(f"{API_URL}/expenses/{expense_id}")
+            response.raise_for_status()
+            expense = response.json()
+            print_test_result("Get Specific Expense", True, expense)
+            
+            # Update expense
+            update_data = {
+                "amount": 999.99,
+                "description": "Updated expense description",
+                "category": "other"
+            }
+            response = requests.put(f"{API_URL}/expenses/{expense_id}", json=update_data)
+            response.raise_for_status()
+            updated_expense = response.json()
+            print_test_result("Update Expense", True, updated_expense)
+            
+            # Delete expense
+            response = requests.delete(f"{API_URL}/expenses/{expense_id}")
+            response.raise_for_status()
+            delete_result = response.json()
+            print_test_result("Delete Expense", True, delete_result)
+            
+            # Remove the deleted ID from our list
+            expense_ids.remove(expense_id)
+        
+        # Clean up remaining expenses
+        for expense_id in expense_ids:
+            requests.delete(f"{API_URL}/expenses/{expense_id}")
+        
+        return True
+    except Exception as e:
+        print_test_result("Expense Management", False, error=str(e))
+        return False
+
 def test_data_flow():
     try:
         # 1. Initialize rooms
