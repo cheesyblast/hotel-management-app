@@ -1,8 +1,10 @@
 import requests
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import uuid
 import time
+import io
+import base64
 
 # Get the backend URL from the frontend .env file
 with open('/app/frontend/.env', 'r') as f:
