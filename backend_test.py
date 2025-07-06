@@ -898,6 +898,146 @@ def test_guest_search():
         print_test_result("Guest Search", False, error=str(e))
         return False
 
+def test_complete_booking_flow():
+    try:
+        print("\n" + "=" * 80)
+        print("TESTING COMPLETE BOOKING FLOW")
+        print("=" * 80 + "\n")
+        
+        # 1. Create a guest with country field
+        unique_suffix = str(uuid.uuid4())[:8]
+        guest_data = {
+            "name": f"Flow Test User {unique_suffix}",
+            "email": f"flow{unique_suffix}@example.com",
+            "phone": f"555-{unique_suffix}",
+            "address": "123 Flow St, Test City",
+            "country": "Canada",
+            "id_number": f"ID{unique_suffix}"
+        }
+        
+        response = requests.post(f"{API_URL}/guests", json=guest_data)
+        response.raise_for_status()
+        guest = response.json()
+        guest_id = guest["id"]
+        print_test_result("1. Create Guest", True, guest)
+        
+        # 2. Get a room to book
+        response = requests.get(f"{API_URL}/rooms")
+        response.raise_for_status()
+        rooms = response.json()
+        if not rooms:
+            print_test_result("Complete Booking Flow", False, error="No rooms available for test")
+            return False
+        
+        room_id = rooms[0]["id"]
+        room_price = rooms[0]["price_per_night"]
+        
+        # 3. Create a booking
+        today = datetime.now().date()
+        check_in = today + timedelta(days=1)
+        check_out = today + timedelta(days=3)  # 2 nights
+        
+        booking_data = {
+            "guest_id": guest_id,
+            "room_id": room_id,
+            "check_in_date": format_date(check_in),
+            "check_out_date": format_date(check_out),
+            "special_requests": "Complete flow test booking"
+        }
+        
+        response = requests.post(f"{API_URL}/bookings", json=booking_data)
+        response.raise_for_status()
+        booking = response.json()
+        booking_id = booking["id"]
+        print_test_result("2. Create Booking", True, booking)
+        
+        # 4. Make advance payment
+        advance_amount = booking["total_amount"] * 0.3  # 30% advance
+        advance_payment_data = {
+            "booking_id": booking_id,
+            "payment_type": "card",
+            "amount": advance_amount,
+            "description": "30% advance payment",
+            "is_advance": True
+        }
+        
+        response = requests.post(f"{API_URL}/payments", json=advance_payment_data)
+        response.raise_for_status()
+        advance_payment = response.json()
+        print_test_result("3. Make Advance Payment", True, advance_payment)
+        
+        # 5. Check booking balance
+        response = requests.get(f"{API_URL}/bookings/{booking_id}/balance")
+        response.raise_for_status()
+        balance_after_advance = response.json()
+        print_test_result("4. Check Balance After Advance", True, balance_after_advance)
+        
+        # 6. Update booking to CONFIRMED
+        update_data = {"status": "confirmed"}
+        response = requests.put(f"{API_URL}/bookings/{booking_id}", json=update_data)
+        response.raise_for_status()
+        print_test_result("5. Confirm Booking", True, response.json())
+        
+        # 7. Check-in
+        update_data = {"status": "checked_in"}
+        response = requests.put(f"{API_URL}/bookings/{booking_id}", json=update_data)
+        response.raise_for_status()
+        print_test_result("6. Check-in", True, response.json())
+        
+        # 8. Make final payment and checkout
+        response = requests.get(f"{API_URL}/bookings/{booking_id}/balance")
+        response.raise_for_status()
+        balance_before_checkout = response.json()
+        
+        final_payment_data = {
+            "booking_id": booking_id,
+            "payment_type": "cash",
+            "amount": balance_before_checkout["balance_due"],
+            "description": "Final payment at checkout",
+            "is_advance": False
+        }
+        
+        response = requests.post(f"{API_URL}/bookings/{booking_id}/checkout", json=final_payment_data)
+        response.raise_for_status()
+        checkout_result = response.json()
+        print_test_result("7. Checkout with Final Payment", True, checkout_result)
+        
+        # 9. Download invoice
+        invoice_id = checkout_result.get("invoice_id")
+        if invoice_id:
+            response = requests.get(f"{API_URL}/invoices/{invoice_id}/pdf")
+            if response.status_code == 200 and response.headers.get('Content-Type') == 'application/pdf':
+                print_test_result("8. Download Invoice PDF", True, f"PDF size: {len(response.content)} bytes")
+            else:
+                print_test_result("8. Download Invoice PDF", False, f"Failed to download PDF")
+        else:
+            print_test_result("8. Download Invoice PDF", False, "No invoice ID in checkout response")
+        
+        # 10. Verify final booking status
+        response = requests.get(f"{API_URL}/bookings/{booking_id}")
+        response.raise_for_status()
+        final_booking = response.json()
+        
+        if final_booking["status"] == "checked_out":
+            print_test_result("9. Final Booking Status", True, f"Status: {final_booking['status']}")
+        else:
+            print_test_result("9. Final Booking Status", False, f"Expected 'checked_out', got '{final_booking['status']}'")
+        
+        # 11. Check financial report
+        response = requests.get(f"{API_URL}/financial/report", params={"report_date": format_date(today)})
+        response.raise_for_status()
+        financial_report = response.json()
+        print_test_result("10. Financial Report After Booking", True, financial_report)
+        
+        print("\n" + "=" * 80)
+        print("COMPLETE BOOKING FLOW TEST FINISHED")
+        print("=" * 80 + "\n")
+        
+        return True
+    except Exception as e:
+        print_test_result("Complete Booking Flow", False, error=str(e))
+        return False
+
 def test_data_flow():
     try:
         # 1. Initialize rooms
