@@ -1168,6 +1168,61 @@ def run_all_tests():
         # Test edge cases
         test_edge_cases()
         
+        # Create a booking for payment and checkout tests
+        today = datetime.now().date()
+        check_in = today + timedelta(days=10)
+        check_out = today + timedelta(days=12)
+        
+        booking_data = {
+            "guest_id": guest_id,
+            "room_id": None,
+            "check_in_date": format_date(check_in),
+            "check_out_date": format_date(check_out),
+            "special_requests": "Test booking for payment and checkout tests"
+        }
+        
+        try:
+            # Get a room
+            response = requests.get(f"{API_URL}/rooms")
+            response.raise_for_status()
+            rooms = response.json()
+            if rooms:
+                booking_data["room_id"] = rooms[0]["id"]
+                
+                response = requests.post(f"{API_URL}/bookings", json=booking_data)
+                response.raise_for_status()
+                payment_test_booking = response.json()
+                payment_booking_id = payment_test_booking["id"]
+                
+                # Test payment management
+                test_payment_management(payment_booking_id)
+                
+                # Test booking balance
+                test_booking_balance(payment_booking_id)
+                
+                # Test checkout process
+                checkout_success, invoice_id = test_checkout_process(payment_booking_id)
+                
+                # Test invoice generation if checkout didn't create one
+                if not invoice_id:
+                    test_invoice_generation(payment_booking_id)
+            else:
+                print_test_result("Payment and Checkout Tests", False, error="No rooms available for tests")
+        except Exception as e:
+            print_test_result("Payment and Checkout Tests Setup", False, error=str(e))
+        
+        # Test expense management
+        test_expense_management()
+        
+        # Test financial reporting
+        test_financial_reporting()
+        
+        # Test guest search
+        test_guest_search()
+        
+        # Test complete booking flow
+        test_complete_booking_flow()
+        
         # Test data flow
         test_data_flow()
     
