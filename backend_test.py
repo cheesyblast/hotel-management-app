@@ -566,6 +566,54 @@ def test_edge_cases():
         print_test_result("Edge Cases", False, error=str(e))
         return False
 
+def test_payment_management(booking_id):
+    try:
+        # Create an advance payment (cash)
+        advance_payment_data = {
+            "booking_id": booking_id,
+            "payment_type": "cash",
+            "amount": 100.0,
+            "description": "Advance payment for booking",
+            "is_advance": True
+        }
+        
+        response = requests.post(f"{API_URL}/payments", json=advance_payment_data)
+        response.raise_for_status()
+        advance_payment = response.json()
+        print_test_result("Create Advance Payment (Cash)", True, advance_payment)
+        
+        # Create another advance payment (card)
+        card_payment_data = {
+            "booking_id": booking_id,
+            "payment_type": "card",
+            "amount": 150.0,
+            "description": "Card advance payment",
+            "is_advance": True
+        }
+        
+        response = requests.post(f"{API_URL}/payments", json=card_payment_data)
+        response.raise_for_status()
+        card_payment = response.json()
+        print_test_result("Create Advance Payment (Card)", True, card_payment)
+        
+        # Get all payments for the booking
+        response = requests.get(f"{API_URL}/payments/booking/{booking_id}")
+        response.raise_for_status()
+        payments = response.json()
+        print_test_result("Get Payments for Booking", True, f"Found {len(payments)} payments")
+        
+        # Verify payment details
+        if len(payments) >= 2:
+            total_paid = sum(payment["amount"] for payment in payments)
+            print_test_result("Payment Tracking", True, f"Total paid: ${total_paid}")
+            return True
+        else:
+            print_test_result("Payment Tracking", False, "Expected at least 2 payments")
+            return False
+    except Exception as e:
+        print_test_result("Payment Management", False, error=str(e))
+        return False
+
 def test_data_flow():
     try:
         # 1. Initialize rooms
