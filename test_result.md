@@ -107,15 +107,18 @@ user_problem_statement: "Build a hotel management app for a hotel with 10 rooms"
 backend:
   - task: "Hotel Management Backend API"
     implemented: true
-    working: false  # needs testing
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Implemented complete hotel management backend with Room, Guest, Booking models. Created comprehensive API endpoints for CRUD operations, booking conflict detection, dashboard stats, and room status management. Includes 10 default rooms initialization. Ready for testing."
+      - working: true
+        agent: "testing"
+        comment: "Fixed date serialization issues in MongoDB storage. Modified dashboard endpoint, booking creation, and room availability checks to properly handle date objects. All API endpoints now working correctly. Comprehensive testing completed with backend_test.py script. All core functionality is working as expected including room initialization, CRUD operations for rooms/guests/bookings, booking conflict detection, room status updates, and dashboard statistics."
 
 frontend:
   - task: "Hotel Management Frontend Dashboard"
