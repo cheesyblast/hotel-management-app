@@ -100,6 +100,15 @@ class Booking(BaseModel):
     total_amount: float
     special_requests: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Convert date objects to strings for MongoDB storage
+    def dict(self, *args, **kwargs):
+        data = super().dict(*args, **kwargs)
+        if 'check_in_date' in data and isinstance(data['check_in_date'], date):
+            data['check_in_date'] = data['check_in_date'].isoformat()
+        if 'check_out_date' in data and isinstance(data['check_out_date'], date):
+            data['check_out_date'] = data['check_out_date'].isoformat()
+        return data
 
 class BookingCreate(BaseModel):
     guest_id: str
