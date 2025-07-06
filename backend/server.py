@@ -242,7 +242,7 @@ async def update_guest(guest_id: str, guest_update: GuestCreate):
     
     # Check if email already exists for other guests
     if guest_update.email != guest["email"]:
-        existing_guest = await db.guests.find_one({"email": guest_update.email})
+        existing_guest = await db.guests.find_one({"email": guest_update.email, "id": {"$ne": guest_id}})
         if existing_guest:
             raise HTTPException(status_code=400, detail="Guest with this email already exists")
     
