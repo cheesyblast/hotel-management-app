@@ -54,6 +54,23 @@ class BookingStatus(str, Enum):
     CHECKED_OUT = "checked_out"
     CANCELLED = "cancelled"
 
+class PaymentType(str, Enum):
+    CASH = "cash"
+    CARD = "card"
+
+class PaymentStatus(str, Enum):
+    PENDING = "pending"
+    COMPLETED = "completed"
+    REFUNDED = "refunded"
+
+class ExpenseCategory(str, Enum):
+    UTILITIES = "utilities"
+    MAINTENANCE = "maintenance"
+    SUPPLIES = "supplies"
+    STAFF = "staff"
+    MARKETING = "marketing"
+    OTHER = "other"
+
 # Data Models
 class Room(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
