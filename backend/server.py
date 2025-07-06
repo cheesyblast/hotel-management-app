@@ -105,6 +105,7 @@ class Guest(BaseModel):
     email: str
     phone: str
     address: Optional[str] = None
+    country: str = "Unknown"
     id_number: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -113,7 +114,63 @@ class GuestCreate(BaseModel):
     email: str
     phone: str
     address: Optional[str] = None
+    country: str = "Unknown"
     id_number: Optional[str] = None
+
+class Payment(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    booking_id: str
+    payment_type: PaymentType
+    amount: float
+    payment_date: datetime = Field(default_factory=datetime.utcnow)
+    status: PaymentStatus = PaymentStatus.COMPLETED
+    description: Optional[str] = None
+    is_advance: bool = False
+
+class PaymentCreate(BaseModel):
+    booking_id: str
+    payment_type: PaymentType
+    amount: float
+    description: Optional[str] = None
+    is_advance: bool = False
+
+class Expense(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    category: ExpenseCategory
+    amount: float
+    description: str
+    date: date = Field(default_factory=date.today)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class ExpenseCreate(BaseModel):
+    category: ExpenseCategory
+    amount: float
+    description: str
+    date: Optional[date] = None
+
+class Invoice(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    booking_id: str
+    guest_name: str
+    room_number: str
+    check_in_date: date
+    check_out_date: date
+    total_amount: float
+    advance_paid: float
+    balance_due: float
+    payments: List[Payment] = []
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class FinancialReport(BaseModel):
+    date: date
+    total_income: float
+    total_expenses: float
+    net_profit: float
+    total_bookings: int
+    room_revenue: float
+    advance_payments: float
+    final_payments: float
+    expenses_by_category: Dict[str, float]
 
 class Booking(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
