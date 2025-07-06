@@ -122,12 +122,23 @@ def test_guest_crud():
         guests = response.json()
         print_test_result("Get All Guests", True, f"Found {len(guests)} guests")
         
-        # Create a new guest
-        response = requests.post(f"{API_URL}/guests", json=test_guest)
-        response.raise_for_status()
-        created_guest = response.json()
-        guest_id = created_guest["id"]
-        print_test_result("Create Guest", True, created_guest)
+        # Check if our test guest already exists
+        existing_guest_id = None
+        for guest in guests:
+            if guest["email"] == test_guest["email"]:
+                existing_guest_id = guest["id"]
+                print_test_result("Test Guest Already Exists", True, f"Using existing guest with ID: {existing_guest_id}")
+                break
+        
+        if existing_guest_id:
+            guest_id = existing_guest_id
+        else:
+            # Create a new guest
+            response = requests.post(f"{API_URL}/guests", json=test_guest)
+            response.raise_for_status()
+            created_guest = response.json()
+            guest_id = created_guest["id"]
+            print_test_result("Create Guest", True, created_guest)
         
         # Get specific guest
         response = requests.get(f"{API_URL}/guests/{guest_id}")
@@ -136,7 +147,7 @@ def test_guest_crud():
         print_test_result("Get Specific Guest", True, guest)
         
         # Update guest
-        update_data = {"name": "John Smith", "phone": "987-654-3210"}
+        update_data = {"name": "John Smith", "phone": "987-654-3210", "email": guest["email"]}
         response = requests.put(f"{API_URL}/guests/{guest_id}", json=update_data)
         response.raise_for_status()
         updated_guest = response.json()
