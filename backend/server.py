@@ -146,7 +146,7 @@ class ExpenseCreate(BaseModel):
     category: ExpenseCategory
     amount: float
     description: str
-    date: Optional[date] = None
+    expense_date: Optional[date] = None
 
 class Invoice(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
