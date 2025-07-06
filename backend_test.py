@@ -638,6 +638,77 @@ def test_booking_balance(booking_id):
         print_test_result("Booking Balance", False, error=str(e))
         return False
 
+def test_checkout_process(booking_id):
+    try:
+        # First, ensure the booking is in CHECKED_IN status
+        response = requests.get(f"{API_URL}/bookings/{booking_id}")
+        response.raise_for_status()
+        booking = response.json()
+        
+        if booking["status"] != "checked_in":
+            # Update to CHECKED_IN if not already
+            update_data = {"status": "checked_in"}
+            response = requests.put(f"{API_URL}/bookings/{booking_id}", json=update_data)
+            response.raise_for_status()
+            print_test_result("Update Booking to CHECKED_IN for Checkout", True, response.json())
+        
+        # Get the room ID for later verification
+        room_id = booking["room_id"]
+        
+        # Get current balance
+        response = requests.get(f"{API_URL}/bookings/{booking_id}/balance")
+        response.raise_for_status()
+        balance_info = response.json()
+        balance_due = balance_info["balance_due"]
+        
+        # Create final payment for checkout
+        final_payment_data = {
+            "booking_id": booking_id,
+            "payment_type": "card",
+            "amount": balance_due,
+            "description": "Final payment at checkout",
+            "is_advance": False
+        }
+        
+        # Perform checkout with final payment
+        response = requests.post(f"{API_URL}/bookings/{booking_id}/checkout", json=final_payment_data)
+        response.raise_for_status()
+        checkout_result = response.json()
+        print_test_result("Checkout with Final Payment", True, checkout_result)
+        
+        # Verify booking status is updated to CHECKED_OUT
+        response = requests.get(f"{API_URL}/bookings/{booking_id}")
+        response.raise_for_status()
+        updated_booking = response.json()
+        
+        if updated_booking["status"] == "checked_out":
+            print_test_result("Booking Status After Checkout", True, f"Status: {updated_booking['status']}")
+        else:
+            print_test_result("Booking Status After Checkout", False, f"Expected 'checked_out', got '{updated_booking['status']}'")
+            return False, None
+        
+        # Verify room status is updated to CLEANING
+        response = requests.get(f"{API_URL}/rooms/{room_id}")
+        response.raise_for_status()
+        room = response.json()
+        
+        if room["status"] == "cleaning":
+            print_test_result("Room Status After Checkout", True, f"Status: {room['status']}")
+        else:
+            print_test_result("Room Status After Checkout", False, f"Expected 'cleaning', got '{room['status']}'")
+            return False, None
+        
+        # Verify invoice was generated
+        if "invoice_id" in checkout_result:
+            print_test_result("Invoice Generation During Checkout", True, f"Invoice ID: {checkout_result['invoice_id']}")
+            return True, checkout_result["invoice_id"]
+        else:
+            print_test_result("Invoice Generation During Checkout", False, "No invoice ID in checkout response")
+            return False, None
+    except Exception as e:
+        print_test_result("Checkout Process", False, error=str(e))
+        return False, None
+
 def test_data_flow():
     try:
         # 1. Initialize rooms
