@@ -139,7 +139,7 @@ class Expense(BaseModel):
     category: ExpenseCategory
     amount: float
     description: str
-    date: date = Field(default_factory=date.today)
+    expense_date: date = Field(default_factory=date.today)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class ExpenseCreate(BaseModel):
