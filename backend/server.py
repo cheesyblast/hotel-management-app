@@ -149,11 +149,15 @@ class DashboardStats(BaseModel):
 # Helper functions
 async def check_room_availability(room_id: str, check_in: date, check_out: date, exclude_booking_id: str = None) -> bool:
     """Check if a room is available for the given date range"""
+    # Convert date objects to strings for MongoDB
+    check_in_str = check_in.isoformat() if isinstance(check_in, date) else check_in
+    check_out_str = check_out.isoformat() if isinstance(check_out, date) else check_out
+    
     query = {
         "room_id": room_id,
         "status": {"$in": [BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN]},
         "$or": [
-            {"check_in_date": {"$lt": check_out}, "check_out_date": {"$gt": check_in}},
+            {"check_in_date": {"$lt": check_out_str}, "check_out_date": {"$gt": check_in_str}},
         ]
     }
     
