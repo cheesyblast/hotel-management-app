@@ -619,7 +619,6 @@ async def get_expenses():
     for expense in expenses:
         if isinstance(expense["expense_date"], str):
             expense["expense_date"] = date.fromisoformat(expense["expense_date"])
-            expense["date"] = date.fromisoformat(expense["date"])
     return [Expense(**expense) for expense in expenses]
 
 @api_router.get("/expenses/{expense_id}", response_model=Expense)
