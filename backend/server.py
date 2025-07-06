@@ -989,6 +989,9 @@ async def checkout_booking(booking_id: str, final_payment: Optional[PaymentCreat
         "balance_due": balance_due,
         "invoice_id": invoice_response.id
     }
+# Initialize default rooms
+@api_router.post("/initialize-rooms")
+async def initialize_default_rooms():
     # Check if rooms already exist
     existing_rooms = await db.rooms.count_documents({})
     if existing_rooms > 0:
@@ -1015,6 +1018,19 @@ async def checkout_booking(booking_id: str, final_payment: Optional[PaymentCreat
     
     await db.rooms.insert_many(rooms_to_insert)
     return {"message": "Successfully initialized 10 default rooms"}
+
+# Guest search endpoint
+@api_router.get("/guests/search")
+async def search_guests(query: str):
+    # Search guests by name, email, or phone
+    guests = await db.guests.find({
+        "$or": [
+            {"name": {"$regex": query, "$options": "i"}},
+            {"email": {"$regex": query, "$options": "i"}},
+            {"phone": {"$regex": query, "$options": "i"}}
+        ]
+    }).to_list(10)
+    return [Guest(**guest) for guest in guests]
 
 # Include the router in the main app
 app.include_router(api_router)
