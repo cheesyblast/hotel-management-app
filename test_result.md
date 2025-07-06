@@ -150,3 +150,5 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Built complete hotel management system with backend API and frontend dashboard. Backend includes Room, Guest, Booking models with proper validation and conflict detection. Frontend has beautiful UI with dashboard, room management, booking system, and guest management. Need to test backend API endpoints first, then frontend functionality."
+  - agent: "testing"
+    message: "Completed comprehensive testing of the backend API. Fixed MongoDB date serialization issues in the backend code. All API endpoints are now working correctly. Created and executed backend_test.py which tests all core functionality including room initialization, CRUD operations, booking conflict detection, room status updates, and dashboard statistics. The backend is fully functional and ready for frontend integration."
