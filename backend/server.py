@@ -827,7 +827,7 @@ async def get_financial_report(report_date: date):
     
     # Get expenses for the date
     expenses = await db.expenses.find({
-        "date": report_date_str
+        "expense_date": report_date_str
     }).to_list(100)
     
     # Calculate totals
