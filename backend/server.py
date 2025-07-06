@@ -376,12 +376,14 @@ async def get_dashboard_stats():
     
     # Get today's check-ins and check-outs
     today = date.today()
+    today_str = today.isoformat()  # Convert date to string for MongoDB
+    
     today_checkins = await db.bookings.count_documents({
-        "check_in_date": today,
+        "check_in_date": today_str,
         "status": {"$in": [BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN]}
     })
     today_checkouts = await db.bookings.count_documents({
-        "check_out_date": today,
+        "check_out_date": today_str,
         "status": BookingStatus.CHECKED_OUT
     })
     
