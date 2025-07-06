@@ -709,6 +709,36 @@ def test_checkout_process(booking_id):
         print_test_result("Checkout Process", False, error=str(e))
         return False, None
 
+def test_invoice_generation(booking_id):
+    try:
+        # Generate invoice
+        response = requests.post(f"{API_URL}/invoices/generate/{booking_id}")
+        response.raise_for_status()
+        invoice = response.json()
+        invoice_id = invoice["id"]
+        print_test_result("Generate Invoice", True, invoice)
+        
+        # Download invoice PDF
+        response = requests.get(f"{API_URL}/invoices/{invoice_id}/pdf")
+        
+        if response.status_code == 200 and response.headers.get('Content-Type') == 'application/pdf':
+            pdf_size = len(response.content)
+            print_test_result("Download Invoice PDF", True, f"PDF size: {pdf_size} bytes")
+            
+            # Verify invoice contains expected data
+            if invoice["guest_name"] and invoice["room_number"] and invoice["total_amount"] >= 0:
+                print_test_result("Invoice Data Verification", True, "Invoice contains required guest and payment information")
+                return True, invoice_id
+            else:
+                print_test_result("Invoice Data Verification", False, "Invoice missing required information")
+                return False, invoice_id
+        else:
+            print_test_result("Download Invoice PDF", False, f"Status: {response.status_code}, Content-Type: {response.headers.get('Content-Type')}")
+            return False, None
+    except Exception as e:
+        print_test_result("Invoice Generation", False, error=str(e))
+        return False, None
+
 def test_data_flow():
     try:
         # 1. Initialize rooms
