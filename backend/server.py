@@ -449,13 +449,25 @@ async def check_room_availability_endpoint(room_id: str, check_in: date, check_o
 # Get bookings for a specific date range
 @api_router.get("/bookings/range")
 async def get_bookings_by_date_range(start_date: date, end_date: date):
+    # Convert date objects to strings for MongoDB
+    start_date_str = start_date.isoformat() if isinstance(start_date, date) else start_date
+    end_date_str = end_date.isoformat() if isinstance(end_date, date) else end_date
+    
     bookings = await db.bookings.find({
         "$or": [
-            {"check_in_date": {"$gte": start_date, "$lte": end_date}},
-            {"check_out_date": {"$gte": start_date, "$lte": end_date}},
-            {"check_in_date": {"$lte": start_date}, "check_out_date": {"$gte": end_date}}
+            {"check_in_date": {"$gte": start_date_str, "$lte": end_date_str}},
+            {"check_out_date": {"$gte": start_date_str, "$lte": end_date_str}},
+            {"check_in_date": {"$lte": start_date_str}, "check_out_date": {"$gte": end_date_str}}
         ]
     }).to_list(100)
+    
+    # Convert string dates back to date objects for response
+    for booking in bookings:
+        if 'check_in_date' in booking and isinstance(booking['check_in_date'], str):
+            booking['check_in_date'] = date.fromisoformat(booking['check_in_date'])
+        if 'check_out_date' in booking and isinstance(booking['check_out_date'], str):
+            booking['check_out_date'] = date.fromisoformat(booking['check_out_date'])
+    
     return [Booking(**booking) for booking in bookings]
 
 # Initialize default rooms
