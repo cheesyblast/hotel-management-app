@@ -102,26 +102,23 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Build a hotel management app for a hotel with 10 rooms"
+user_problem_statement: "Build a hotel management app for a hotel with 10 rooms with enhanced payment management, invoice generation, and financial reporting"
 
 backend:
-  - task: "Hotel Management Backend API"
+  - task: "Enhanced Hotel Management Backend API"
     implemented: true
-    working: true
+    working: false  # needs testing
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: false
         agent: "main"
-        comment: "Implemented complete hotel management backend with Room, Guest, Booking models. Created comprehensive API endpoints for CRUD operations, booking conflict detection, dashboard stats, and room status management. Includes 10 default rooms initialization. Ready for testing."
-      - working: true
-        agent: "testing"
-        comment: "Fixed date serialization issues in MongoDB storage. Modified dashboard endpoint, booking creation, and room availability checks to properly handle date objects. All API endpoints now working correctly. Comprehensive testing completed with backend_test.py script. All core functionality is working as expected including room initialization, CRUD operations for rooms/guests/bookings, booking conflict detection, room status updates, and dashboard statistics."
+        comment: "Enhanced backend with Payment, Expense, Invoice models. Added payment tracking, advance payments, checkout process, invoice PDF generation, financial reporting, guest search functionality. Added reportlab for PDF generation. Ready for comprehensive testing."
 
 frontend:
-  - task: "Hotel Management Frontend Dashboard"
+  - task: "Enhanced Hotel Management Frontend"
     implemented: true
     working: false  # needs testing
     file: "/app/frontend/src/App.js"
@@ -131,24 +128,22 @@ frontend:
     status_history:
       - working: false
         agent: "main"
-        comment: "Implemented complete hotel management frontend with dashboard, room grid, booking system, guest management. Beautiful UI with Tailwind CSS, real-time status updates, and comprehensive booking flow. Ready for testing."
+        comment: "Enhanced frontend with country field in booking form, manual guest entry with auto-suggestions, payment management, checkout process with invoice download, financial management tab with expense tracking and PDF report download. Ready for testing."
 
 metadata:
   created_by: "main_agent"
-  version: "1.0"
-  test_sequence: 1
+  version: "2.0"
+  test_sequence: 2
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Hotel Management Backend API"
-    - "Hotel Management Frontend Dashboard"
+    - "Enhanced Hotel Management Backend API"
+    - "Enhanced Hotel Management Frontend"
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Built complete hotel management system with backend API and frontend dashboard. Backend includes Room, Guest, Booking models with proper validation and conflict detection. Frontend has beautiful UI with dashboard, room management, booking system, and guest management. Need to test backend API endpoints first, then frontend functionality."
-  - agent: "testing"
-    message: "Completed comprehensive testing of the backend API. Fixed MongoDB date serialization issues in the backend code. All API endpoints are now working correctly. Created and executed backend_test.py which tests all core functionality including room initialization, CRUD operations, booking conflict detection, room status updates, and dashboard statistics. The backend is fully functional and ready for frontend integration."
+    message: "Enhanced hotel management system with advanced payment management, invoice generation, and financial reporting. Key new features: 1) Country field in guest info with manual entry and auto-suggestions 2) Payment tracking (cash/card, advances/final payments) 3) Checkout process with automatic invoice PDF generation 4) Financial management tab with expense tracking 5) PDF daily reports with income/expense breakdown. Backend includes Payment, Expense, Invoice models with comprehensive APIs. Frontend has new Financial tab and enhanced booking flow. Need to test all new payment and financial features."
