@@ -599,15 +599,15 @@ async def get_booking_balance(booking_id: str):
 @api_router.post("/expenses", response_model=Expense)
 async def create_expense(expense: ExpenseCreate):
     expense_dict = expense.dict()
-    if expense_dict.get("date") is None:
-        expense_dict["date"] = date.today()
+    if expense_dict.get("expense_date") is None:
+        expense_dict["expense_date"] = date.today()
     
     expense_obj = Expense(**expense_dict)
     
     # Convert date to string for MongoDB
     expense_data = expense_obj.dict()
-    if isinstance(expense_data["date"], date):
-        expense_data["date"] = expense_data["date"].isoformat()
+    if isinstance(expense_data["expense_date"], date):
+        expense_data["expense_date"] = expense_data["expense_date"].isoformat()
     
     await db.expenses.insert_one(expense_data)
     return expense_obj
@@ -617,7 +617,8 @@ async def get_expenses():
     expenses = await db.expenses.find().to_list(100)
     # Convert date strings back to date objects
     for expense in expenses:
-        if isinstance(expense["date"], str):
+        if isinstance(expense["expense_date"], str):
+            expense["expense_date"] = date.fromisoformat(expense["expense_date"])
             expense["date"] = date.fromisoformat(expense["date"])
     return [Expense(**expense) for expense in expenses]
 
