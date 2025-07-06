@@ -750,7 +750,7 @@ def test_expense_management():
                 "category": category,
                 "amount": 100.0 + (i * 50),
                 "description": f"Test {category} expense",
-                "date": format_date(datetime.now().date())
+                "expense_date": format_date(datetime.now().date())
             }
             
             response = requests.post(f"{API_URL}/expenses", json=expense_data)
@@ -777,7 +777,8 @@ def test_expense_management():
             update_data = {
                 "amount": 999.99,
                 "description": "Updated expense description",
-                "category": "other"
+                "category": "other",
+                "expense_date": format_date(datetime.now().date())
             }
             response = requests.put(f"{API_URL}/expenses/{expense_id}", json=update_data)
             response.raise_for_status()
